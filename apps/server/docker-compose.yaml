@@ -1,7 +1,0 @@
-version: '0.1'
-services:
-  redis:
-    image: redis:6.2.6
-    ports:
-      - '6399:6379' # expose redis on port 6399 to not collide with redis from elswhere
-    restart: always

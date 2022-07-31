@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig/server.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "composite": true
+  },
+  "include": ["./"],
+  "exclude": ["dist"]
+}

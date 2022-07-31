@@ -1,29 +1,43 @@
 {
+  "name": "coxwave-monorepo-template",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "@apps/*",
+    "packages/*",
+    "sdk/*"
   ],
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --force",
+    "clean": "turbo run clean --force",
+    "lib": "turbo run lib:build --force",
+    "lib:build": "turbo run lib:build --force",
     "dev": "turbo run dev --parallel",
     "test": "turbo run test",
     "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,mdx}\"",
+    "deploy": "vercel link && vercel --prod && rm -rf .vercel",
     "prepare": "husky install && yarn dlx @yarnpkg/sdks"
   },
+  "dependencies": {
+    "dotenv": "16.0.0",
+    "dotenv-cli": "5.1.0"
+  },
   "devDependencies": {
+    "@nestjs/cli": "8.2.5",
+    "@tailwindcss/typography": "0.5.4",
+    "add": "2.0.6",
     "eslint": "8.13.0",
     "husky": "7.0.4",
-    "next": "12.1.5",
-    "pino": "7.10.0",
+    "next": "12.2.3",
     "pino-pretty": "7.6.1",
     "prettier": "2.6.2",
-    "prettier-plugin-tailwindcss": "0.1.8",
+    "prettier-plugin-tailwindcss": "0.1.10",
     "pretty-quick": "3.1.3",
     "react": "17.0.2",
     "react-dom": "17.0.2",
     "turbo": "1.2.4",
-    "typescript": "4.6.3"
+    "typescript": "4.6.3",
+    "vercel": "24.2.1"
   },
   "engines": {
     "npm": "please-use-yarn",
