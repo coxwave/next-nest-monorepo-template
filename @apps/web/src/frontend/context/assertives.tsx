@@ -1,47 +1,28 @@
-import { Notification, type NotificationProps } from '@packages/ui';
-import update from 'immutability-helper';
-import { createContext, ReactNode, Reducer, useContext, useMemo, useReducer, useRef } from 'react';
+import { useTimer } from '@packages/hooks';
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+
+import { AppModal, type ModalProps } from '@/frontend/components/ui/Modal';
+import { AppNotification, type NotificationProps } from '@/frontend/components/ui/Notification';
 
 type NotificationContent = Pick<NotificationProps, 'variant' | 'title' | 'content' | 'className'>;
+type ModalContent = Pick<
+  ModalProps,
+  'variant' | 'title' | 'content' | 'actionButton' | 'cancelButton'
+>;
 
 export type AssertiveState = {
   notiFlag: boolean;
   notiContent: NotificationContent;
-};
-
-const initialState: AssertiveState = {
-  notiFlag: false,
-  notiContent: { variant: 'default', title: '' },
-};
-
-type AssertiveStoreAction =
-  | { type: 'RESET' }
-  | { type: 'CLOSE_NOTI' }
-  | { type: 'SHOW_NOTI'; notiContent: NotificationContent }
-  | { type: 'SHOW_ALERT'; error: { name: string; message: string } };
-
-export const AssertiveContext = createContext<AssertiveState>(initialState);
-
-const assertiveReducer: Reducer<AssertiveState, AssertiveStoreAction> = (state, action) => {
-  switch (action.type) {
-    case 'RESET':
-      return initialState;
-    case 'CLOSE_NOTI':
-      return update(state, {
-        notiFlag: { $set: false },
-      });
-    case 'SHOW_NOTI':
-      return update(state, {
-        notiFlag: { $set: true },
-        notiContent: { $set: action.notiContent },
-      });
-    case 'SHOW_ALERT':
-      const { name, message } = action.error;
-      return update(state, {
-        notiFlag: { $set: true },
-        notiContent: { $set: { variant: 'alert', title: `[${name}] - ${message}` } },
-      });
-  }
+  modalFlag: boolean;
+  modalContent: ModalContent;
 };
 
 type AssertiveStore = AssertiveState & {
@@ -49,43 +30,111 @@ type AssertiveStore = AssertiveState & {
   closeNoti: () => void;
   showNoti: (notiContent: NotificationContent, autoCloseMS?: number) => void;
   showAlert: (error: { name: string; message: string }, autoCloseMS?: number) => void;
+  showModal: (modalContent: ModalContent) => void;
+  closeModal: () => void;
 };
 
-export function AssertiveStoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(assertiveReducer, initialState);
-  const notiTimer = useRef<NodeJS.Timeout>();
+const initialState: AssertiveState = {
+  notiFlag: false,
+  notiContent: { variant: 'default', title: '' },
+  modalFlag: false,
+  modalContent: {
+    variant: 'default',
+    title: '',
+    content: '',
+    actionButton: { label: '', onClick: () => {} },
+    cancelButton: { label: '', onClick: () => {} },
+  },
+};
+const initialNoti: Pick<AssertiveState, 'notiFlag' | 'notiContent'> = {
+  notiFlag: false,
+  notiContent: { variant: 'default', title: '' },
+};
+const initialModal: Pick<AssertiveState, 'modalFlag' | 'modalContent'> = {
+  modalFlag: false,
+  modalContent: {
+    variant: 'default',
+    title: '',
+    content: '',
+    actionButton: { label: '', onClick: () => {} },
+    cancelButton: { label: '', onClick: () => {} },
+  },
+};
 
-  const resetStore = () => dispatch({ type: 'RESET' });
-  const closeNoti = () => {
-    if (notiTimer.current) clearTimeout(notiTimer.current);
-    dispatch({ type: 'CLOSE_NOTI' });
-  };
-  const showNoti = (notiContent: NotificationContent, autoCloseMS = 3000) => {
-    dispatch({ type: 'SHOW_NOTI', notiContent });
-    if (notiTimer.current) clearTimeout(notiTimer.current);
-    notiTimer.current = setTimeout(() => dispatch({ type: 'CLOSE_NOTI' }), autoCloseMS);
-  };
-  const showAlert = (error: { name: string; message: string }, autoCloseMS = 3000) => {
-    dispatch({ type: 'SHOW_ALERT', error });
-    if (notiTimer.current) clearTimeout(notiTimer.current);
-    notiTimer.current = setTimeout(() => dispatch({ type: 'CLOSE_NOTI' }), autoCloseMS);
-  };
+export const AssertiveContext = createContext<AssertiveState>(initialState);
+
+export function AssertiveStoreProvider({ children }: { children: ReactNode }) {
+  // Save modal data to prevent closing with notification
+  const modalRef = useRef<Pick<AssertiveState, 'modalFlag' | 'modalContent'>>(initialModal);
+  const [store, setStore] = useState<AssertiveState>(initialState);
+
+  const resetStore = useCallback(() => setStore(initialState), []);
+
+  const { clearTimer, resetTimer } = useTimer();
+
+  const closeNoti = useCallback(() => {
+    clearTimer();
+    setStore({ ...modalRef.current, ...initialNoti });
+  }, [clearTimer]);
+
+  const showNoti = useCallback(
+    (notiContent: NotificationContent, autoCloseMS = 3000) => {
+      resetTimer(autoCloseMS, closeNoti);
+      setStore({ ...store, notiContent, notiFlag: true });
+    },
+    [resetTimer, store, closeNoti],
+  );
+
+  const showAlert = useCallback(
+    (error: { name: string; message: string }, autoCloseMS = 3000) => {
+      const { name, message } = error;
+
+      resetTimer(autoCloseMS, closeNoti);
+      setStore({
+        ...store,
+        notiFlag: true,
+        notiContent: { variant: 'alert', title: `[${name}] - ${message}` },
+      });
+    },
+    [resetTimer, store, closeNoti],
+  );
+
+  const showModal = useCallback(
+    (modalContent: ModalContent) => {
+      modalRef.current = { modalContent, modalFlag: true };
+      setStore({ ...store, modalContent, modalFlag: true });
+    },
+    [store],
+  );
+
+  const closeModal = useCallback(() => {
+    modalRef.current = initialModal;
+    setStore({ ...store, modalFlag: false });
+  }, [store]);
 
   const value = useMemo<AssertiveStore>(
     () => ({
-      ...state,
+      ...store,
       resetStore,
       closeNoti,
       showNoti,
       showAlert,
+      showModal,
+      closeModal,
     }),
-    [state],
+    [store, resetStore, closeNoti, showNoti, showAlert, showModal, closeModal],
   );
 
   return (
     <AssertiveContext.Provider value={value}>
       {children}
-      <Notification show={state.notiFlag} close={closeNoti} {...state.notiContent} />
+      <AppNotification
+        className="z-20"
+        show={store.notiFlag}
+        close={closeNoti}
+        {...store.notiContent}
+      />
+      <AppModal show={store.modalFlag} close={closeModal} {...store.modalContent} />
     </AssertiveContext.Provider>
   );
 }
